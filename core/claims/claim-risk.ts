@@ -1,4 +1,5 @@
 import { Claim } from "./claim-decomposer";
+import { ClaimType } from "./claim-types";
 
 export type ClaimRisk = "low" | "medium" | "high";
 

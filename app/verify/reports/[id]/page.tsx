@@ -1,19 +1,32 @@
 // app/verify/reports/[id]/page.tsx
-export default function ReportPage({
-  params,
-}: {
-  params: { id: string };
-}) {
-  return (
-    <main className="max-w-4xl mx-auto py-12 px-6">
-      <h1 className="text-2xl font-semibold">
-        Verification Report #{params.id}
-      </h1>
+import { notFound } from "next/navigation";
+import ExecutiveDashboard from "@/components/reports/ExecutiveDashboard";
+import { getVerification } from "@/lib/storage/db";
 
-      <p className="mt-4 text-neutral-600">
-        This report documents claim-level analysis, reasoning integrity,
-        and risk assessment for the submitted content.
-      </p>
-    </main>
+// Force dynamic rendering as we rely on ID params
+export const dynamic = 'force-dynamic';
+
+interface PageProps {
+  params: {
+    id: string;
+  };
+}
+
+export default async function ReportPage({ params }: PageProps) {
+  // 1. Fetch the immutable record from DB
+  const record = await getVerification(params.id);
+
+  if (!record) {
+    return notFound();
+  }
+
+  // 2. Pass the stored result to the client dashboard
+  return (
+    <div className="min-h-screen bg-gray-50">
+      <ExecutiveDashboard 
+        result={record.result} 
+        reportId={record.id} 
+      />
+    </div>
   );
 }

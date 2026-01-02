@@ -1,29 +1,37 @@
 // core/claims/claim-decomposer.ts
-import crypto from "crypto";
+import { createHash } from "crypto";
+import { ClaimType } from "./claim-types";
 
 export type Claim = {
-  id: string;
+  id: string;          // Stable content-based hash
   text: string;
-  index: number, type ?: string;
+  index: number;
+  type: ClaimType;     // ✅ SINGLE SOURCE OF TRUTH
+  confidence: number;
 };
 
-function hash(text: string) {
-  return crypto
-    .createHash("sha256")
-    .update(text)
+// Helper: Generate a stable short hash (8 chars)
+function generateStableId(text: string): string {
+  return createHash("sha256")
+    .update(text.trim().toLowerCase())
     .digest("hex")
-    .slice(0, 6);
+    .substring(0, 8);
 }
 
 export function decomposeClaims(content: string): Claim[] {
-  const sentences = content
-    .split(/(?<=[.!?])\s+/)
-    .map(s => s.trim())
-    .filter(Boolean);
+  // Robust sentence splitting (regex-based for now)
+  const sentences =
+    content.match(/[^.!?]+[.!?]+/g)?.map(s => s.trim()) || [];
 
-  return sentences.map((text, i) => ({
-    id: `C${i + 1}-${hash(text)}`,
-    index: i + 1,
-    text,
-  }));
+  return sentences.map((cleanText, idx) => {
+    const id = generateStableId(cleanText);
+
+    return {
+      id,
+      text: cleanText,
+      index: idx,
+      type: "factual",   // placeholder → classifier can override
+      confidence: 1.0,
+    };
+  });
 }
