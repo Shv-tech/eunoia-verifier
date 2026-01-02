@@ -1,0 +1,17 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = env("DATABASE_PROVIDER")
+  url      = env("DATABASE_URL")
+}
+
+model Verification {
+  id        String   @id @default(uuid())
+  userId    String?
+  content   String
+  score     Int
+  result    Json
+  createdAt DateTime @default(now())
+}

@@ -1,0 +1,12 @@
+{
+  "version": 3,
+  "sections": [
+    {"offset": {"line": 5, "column": 0}, "map": {"version":3,"sources":["/turbopack/[project]/app/layout.tsx"],"sourcesContent":["// app/layout.tsx\r\nimport \"./globals.css\";\r\nimport Header from \"@/components/layout/Header\";\r\nimport Footer from \"@/components/layout/Footer\";\r\nimport type { Metadata } from \"next\";\r\n\r\nexport const metadata: Metadata = {\r\n  title: \"EUNOIA VERIFY\",\r\n  description: \"Audit AI reasoning before you trust it.\",\r\n};\r\n\r\nexport default function RootLayout({\r\n  children,\r\n}: {\r\n  children: React.ReactNode;\r\n}) {\r\n  return (\r\n    <html lang=\"en\">\r\n      <body className=\"bg-neutral-50 text-neutral-900 antialiased\">\r\n        <Header />\r\n        {children}\r\n        <Footer />\r\n      </body>\r\n    </html>\r\n  );\r\n}\r\n"],"names":[],"mappings":"AAAA,iBAAiB;;;;;;;;;;;;;AAMV,MAAM,WAAqB;IAChC,OAAO;IACP,aAAa;AACf;AAEe,SAAS,WAAW,EACjC,QAAQ,EAGT;IACC,qBACE,mPAAC;QAAK,MAAK;kBACT,cAAA,mPAAC;YAAK,WAAU;;8BACd;;;;;gBACC;8BACD;;;;;;;;;;;;;;;;AAIR"}},
+    {"offset": {"line": 51, "column": 0}, "map": {"version":3,"sources":[],"names":[],"mappings":"A"}},
+    {"offset": {"line": 63, "column": 0}, "map": {"version":3,"sources":["/turbopack/[project]/app/verify/page.tsx/proxy.js"],"sourcesContent":["import { registerClientReference } from \"react-server-dom-turbopack/server.edge\";\nexport default registerClientReference(\n    function() { throw new Error(\"Attempted to call the default export of [project]/app/verify/page.tsx from the server, but it's on the client. It's not possible to invoke a client function from the server, it can only be rendered as a Component or passed to props of a Client Component.\"); },\n    \"[project]/app/verify/page.tsx\",\n    \"default\",\n);\n"],"names":[],"mappings":";;;;;;uCACe,2RACX;IAAa,MAAM,IAAI,MAAM;AAAmQ,GAChS,iCACA"}},
+    {"offset": {"line": 72, "column": 0}, "map": {"version":3,"sources":[],"names":[],"mappings":"A"}},
+    {"offset": {"line": 77, "column": 0}, "map": {"version":3,"sources":[],"names":[],"mappings":""}},
+    {"offset": {"line": 82, "column": 0}, "map": {"version":3,"sources":[],"names":[],"mappings":"A"}},
+    {"offset": {"line": 93, "column": 0}, "map": {"version":3,"sources":["/turbopack/[project]/.next-internal/server/app/verify/page/actions.js"],"sourcesContent":["__turbopack_export_value__({\n});"],"names":[],"mappings":"AAAA,2BAA2B,CAC3B"}},
+    {"offset": {"line": 94, "column": 0}, "map": {"version":3,"sources":[],"names":[],"mappings":"A"}}]
+}

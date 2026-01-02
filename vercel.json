@@ -1,0 +1,12 @@
+{
+  "framework": "nextjs",
+  "env": {
+    "DATABASE_URL": "@database-url",
+    "DATABASE_PROVIDER": "@database-provider"
+  },
+  "functions": {
+    "app/api/**/route.ts": {
+      "maxDuration": 30
+    }
+  }
+}
