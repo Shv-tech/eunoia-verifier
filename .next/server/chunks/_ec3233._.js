@@ -55,9 +55,9 @@ function classifyDomain(text) {
 
 // core/claims/claim-decomposer.ts
 __turbopack_esm__({
-    "decomposeClaims": ()=>decomposeClaims
+    "decomposeClaimsAdvanced": ()=>decomposeClaimsAdvanced
 });
-async function decomposeClaims(content, provider) {
+async function decomposeClaimsAdvanced(content, provider) {
     const prompt = `
     Act as a Senior Forensic Auditor (ex-McKinsey/SEC). 
     Decompose the following text into distinct, atomic claims.
@@ -110,14 +110,48 @@ function linkClaims(claims) {
 "[project]/core/reasoning/graph-builder.ts [app-rsc] (ecmascript)": (({ r: __turbopack_require__, f: __turbopack_require_context__, i: __turbopack_import__, s: __turbopack_esm__, v: __turbopack_export_value__, n: __turbopack_export_namespace__, c: __turbopack_cache__, l: __turbopack_load__, j: __turbopack_dynamic__, p: __turbopack_resolve_absolute_path__, U: __turbopack_relative_url__, R: __turbopack_resolve_module_id_path__, g: global, __dirname, x: __turbopack_external_require__, y: __turbopack_external_import__ }) => (() => {
 "use strict";
 
+// core/reasoning/graph-builder.ts
 __turbopack_esm__({
     "buildGraph": ()=>buildGraph
 });
 function buildGraph(claims, links) {
+    // Identify isolated nodes (Claims with no incoming or outgoing support)
+    const linkedIds = new Set([
+        ...links.map((l)=>l.from),
+        ...links.map((l)=>l.to)
+    ]);
+    const isolatedNodes = claims.filter((c)=>!linkedIds.has(c.id)).map((c)=>c.id);
     return {
         nodes: claims,
-        edges: links
+        edges: links,
+        stats: {
+            isolatedNodes,
+            bridgeCount: links.length,
+            depth: calculateGraphDepth(links, claims)
+        }
     };
+}
+function calculateGraphDepth(links, claims) {
+    if (claims.length === 0) return 0;
+    // Simple heuristic for production: longest sequential path
+    const adj = new Map();
+    links.forEach((l)=>{
+        const neighbors = adj.get(l.from) || [];
+        neighbors.push(l.to);
+        adj.set(l.from, neighbors);
+    });
+    let maxDepth = 0;
+    const visited = new Set();
+    function dfs(id, currentDepth) {
+        maxDepth = Math.max(maxDepth, currentDepth);
+        visited.add(id);
+        (adj.get(id) || []).forEach((next)=>{
+            if (!visited.has(next)) dfs(next, currentDepth + 1);
+        });
+        visited.delete(id);
+    }
+    claims.forEach((c)=>dfs(c.id, 1));
+    return maxDepth;
 }
 
 })()),
@@ -262,6 +296,95 @@ function extractAssumptions(claims) {
 }
 
 })()),
+"[project]/core/engines/risk/semantic-validator.ts [app-rsc] (ecmascript)": (({ r: __turbopack_require__, f: __turbopack_require_context__, i: __turbopack_import__, s: __turbopack_esm__, v: __turbopack_export_value__, n: __turbopack_export_namespace__, c: __turbopack_cache__, l: __turbopack_load__, j: __turbopack_dynamic__, p: __turbopack_resolve_absolute_path__, U: __turbopack_relative_url__, R: __turbopack_resolve_module_id_path__, g: global, __dirname, x: __turbopack_external_require__, y: __turbopack_external_import__ }) => (() => {
+"use strict";
+
+// core/engines/risk/semantic-validator.ts
+__turbopack_esm__({
+    "detectSemanticViolations": ()=>detectSemanticViolations
+});
+async function detectSemanticViolations(claims, domain) {
+    const risks = [];
+    for (const claim of claims){
+        // 1. Absolutism Gate
+        if (/(100%|guaranteed|impossible to fail|infallible|perfect)/i.test(claim.text)) {
+            risks.push(createRisk(claim, "high", "Absolutist phrasing detected. In professional auditing, absolute certainty is a primary red flag for fraud."));
+        }
+        // 2. Physical/Scientific Law Gate (Entropy/Thermodynamics)
+        if (domain === "research" && /(entropy|perpetual|over-unity|faster than light)/i.test(claim.text)) {
+            risks.push(createRisk(claim, "high", "Violation of fundamental scientific constants. This claim contradicts established physical laws."));
+        }
+        // 3. Regulatory Gate (Finance/Legal)
+        if ((domain === "finance" || domain === "legal") && /(guaranteed returns|no-risk profit|bypass regulation)/i.test(claim.text)) {
+            risks.push(createRisk(claim, "high", "Regulatory compliance violation. Promised returns without risk disclosure are prohibited by financial authorities."));
+        }
+    }
+    return risks;
+}
+function createRisk(claim, severity, observation) {
+    return {
+        id: `semantic-${claim.id}`,
+        claimId: claim.id,
+        type: "hallucination",
+        severity,
+        reasoning: {
+            observation,
+            implication: "The entire logical structure of the document is compromised by this impossible premise."
+        },
+        remediation: {
+            action: "Remove absolute qualifiers or provide proof of breakthrough validation."
+        }
+    };
+}
+
+})()),
+"[project]/core/engines/risk/refutation-engine.ts [app-rsc] (ecmascript)": (({ r: __turbopack_require__, f: __turbopack_require_context__, i: __turbopack_import__, s: __turbopack_esm__, v: __turbopack_export_value__, n: __turbopack_export_namespace__, c: __turbopack_cache__, l: __turbopack_load__, j: __turbopack_dynamic__, p: __turbopack_resolve_absolute_path__, U: __turbopack_relative_url__, R: __turbopack_resolve_module_id_path__, g: global, __dirname, x: __turbopack_external_require__, y: __turbopack_external_import__ }) => (() => {
+"use strict";
+
+// core/engines/risk/refutation-engine.ts
+__turbopack_esm__({
+    "runAdversarialRefutation": ()=>runAdversarialRefutation
+});
+async function runAdversarialRefutation(claims, provider) {
+    const risks = [];
+    // Parallel refutation for speed
+    await Promise.all(claims.map(async (claim)=>{
+        const prompt = `
+      Act as a Skeptical Auditor. Your goal is to DEBUNK this claim.
+      Identify the specific logical fallacy, missing assumption, or data gap that makes this claim unreliable.
+      
+      Claim: "${claim.text}"
+      
+      If you find a structural weakness, return a JSON object with "reason" and "implication". 
+      Otherwise return null.
+    `;
+        const response = await provider.generate({
+            prompt,
+            temperature: 0.2
+        });
+        try {
+            const defect = JSON.parse(response.text);
+            if (defect) {
+                risks.push({
+                    id: `refute-${claim.id}`,
+                    claimId: claim.id,
+                    type: "consistency",
+                    severity: "medium",
+                    reasoning: {
+                        observation: defect.reason,
+                        implication: defect.implication
+                    },
+                    remediation: {
+                        action: "Address the specific logical counter-argument."
+                    }
+                });
+            }
+        } catch (e) {}
+    }));
+    return risks;
+}
+
+})()),
 "[project]/core/scoring/trust-score.ts [app-rsc] (ecmascript)": (({ r: __turbopack_require__, f: __turbopack_require_context__, i: __turbopack_import__, s: __turbopack_esm__, v: __turbopack_export_value__, n: __turbopack_export_namespace__, c: __turbopack_cache__, l: __turbopack_load__, j: __turbopack_dynamic__, p: __turbopack_resolve_absolute_path__, U: __turbopack_relative_url__, R: __turbopack_resolve_module_id_path__, g: global, __dirname, x: __turbopack_external_require__, y: __turbopack_external_import__ }) => (() => {
 "use strict";
 
@@ -306,6 +429,7 @@ const ETS_WEIGHTS = {
 "[project]/core/pipelines/verify-pipeline.ts [app-rsc] (ecmascript)": (({ r: __turbopack_require__, f: __turbopack_require_context__, i: __turbopack_import__, s: __turbopack_esm__, v: __turbopack_export_value__, n: __turbopack_export_namespace__, c: __turbopack_cache__, l: __turbopack_load__, j: __turbopack_dynamic__, p: __turbopack_resolve_absolute_path__, U: __turbopack_relative_url__, R: __turbopack_resolve_module_id_path__, g: global, __dirname, x: __turbopack_external_require__, y: __turbopack_external_import__ }) => (() => {
 "use strict";
 
+// core/pipelines/verify-pipeline.ts
 __turbopack_esm__({
     "verifyPipeline": ()=>verifyPipeline
 });
@@ -323,6 +447,9 @@ var __TURBOPACK__imported__module__$5b$project$5d2f$core$2f$engines$2f$consisten
 var __TURBOPACK__imported__module__$5b$project$5d2f$core$2f$engines$2f$risk$2f$hallucination$2d$detector$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__ = __turbopack_import__("[project]/core/engines/risk/hallucination-detector.ts [app-rsc] (ecmascript)");
 var __TURBOPACK__imported__module__$5b$project$5d2f$core$2f$engines$2f$risk$2f$overconfidence$2d$detector$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__ = __turbopack_import__("[project]/core/engines/risk/overconfidence-detector.ts [app-rsc] (ecmascript)");
 var __TURBOPACK__imported__module__$5b$project$5d2f$core$2f$engines$2f$assumptions$2f$assumption$2d$extractor$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__ = __turbopack_import__("[project]/core/engines/assumptions/assumption-extractor.ts [app-rsc] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$core$2f$engines$2f$risk$2f$semantic$2d$validator$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__ = __turbopack_import__("[project]/core/engines/risk/semantic-validator.ts [app-rsc] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$core$2f$engines$2f$risk$2f$refutation$2d$engine$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__ = __turbopack_import__("[project]/core/engines/risk/refutation-engine.ts [app-rsc] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$core$2f$reasoning$2f$causal$2d$validator$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__ = __turbopack_import__("[project]/core/reasoning/causal-validator.ts [app-rsc] (ecmascript)");
 var __TURBOPACK__imported__module__$5b$project$5d2f$core$2f$scoring$2f$trust$2d$score$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__ = __turbopack_import__("[project]/core/scoring/trust-score.ts [app-rsc] (ecmascript)");
 var __TURBOPACK__imported__module__$5b$project$5d2f$core$2f$scoring$2f$weighting$2d$profiles$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__ = __turbopack_import__("[project]/core/scoring/weighting-profiles.ts [app-rsc] (ecmascript)");
 "__TURBOPACK__ecmascript__hoisting__location__";
@@ -342,45 +469,107 @@ var __TURBOPACK__imported__module__$5b$project$5d2f$core$2f$scoring$2f$weighting
 ;
 ;
 ;
-function verifyPipeline(rawText, profile, sources = []) {
-    /* 1. Normalize */ const text = __TURBOPACK__imported__module__$5b$project$5d2f$core$2f$intake$2f$normalize$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["normalizeInput"](rawText);
-    /* 2. Intake signals */ const tone = __TURBOPACK__imported__module__$5b$project$5d2f$core$2f$intake$2f$tone$2d$calibration$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["calibrateTone"](text);
+;
+;
+;
+async function verifyPipeline(rawText, profile, provider, sources = []) {
+    const text = __TURBOPACK__imported__module__$5b$project$5d2f$core$2f$intake$2f$normalize$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["normalizeInput"](rawText);
+    const tone = __TURBOPACK__imported__module__$5b$project$5d2f$core$2f$intake$2f$tone$2d$calibration$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["calibrateTone"](text);
     const domain = __TURBOPACK__imported__module__$5b$project$5d2f$core$2f$intake$2f$domain$2d$classifier$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["classifyDomain"](text);
-    /* 3. Claim decomposition (FORCE STABLE IDS) */ const rawClaims = __TURBOPACK__imported__module__$5b$project$5d2f$core$2f$claims$2f$claim$2d$decomposer$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["decomposeClaims"](text);
-    const claims = rawClaims.map((c, index)=>({
-            ...c,
-            id: `C${index + 1}`
-        }));
-    /* 4. Reasoning structure */ const links = __TURBOPACK__imported__module__$5b$project$5d2f$core$2f$claims$2f$claim$2d$linker$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["linkClaims"](claims);
+    // 1. Forensic Decomposition
+    const claims = await __TURBOPACK__imported__module__$5b$project$5d2f$core$2f$claims$2f$claim$2d$decomposer$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["decomposeClaimsAdvanced"](text, provider);
+    // 2. Structural Reasoning
+    const links = __TURBOPACK__imported__module__$5b$project$5d2f$core$2f$claims$2f$claim$2d$linker$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["linkClaims"](claims);
     const graph = __TURBOPACK__imported__module__$5b$project$5d2f$core$2f$reasoning$2f$graph$2d$builder$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["buildGraph"](claims, links);
-    /* 5. Reasoning defects */ const contradictions = __TURBOPACK__imported__module__$5b$project$5d2f$core$2f$reasoning$2f$contradiction$2d$checker$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["detectContradictions"](claims);
+    const evidenceMatches = __TURBOPACK__imported__module__$5b$project$5d2f$core$2f$engines$2f$grounding$2f$evidence$2d$mapper$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["mapEvidence"](claims, sources);
+    // 3. Parallel Adversarial Analysis (The "Skeptic" Layer)
+    const [semanticRisks, refutationRisks, causalRisks] = await Promise.all([
+        __TURBOPACK__imported__module__$5b$project$5d2f$core$2f$engines$2f$risk$2f$semantic$2d$validator$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["detectSemanticViolations"](claims, domain),
+        __TURBOPACK__imported__module__$5b$project$5d2f$core$2f$engines$2f$risk$2f$refutation$2d$engine$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["runAdversarialRefutation"](claims, provider),
+        __TURBOPACK__imported__module__$5b$project$5d2f$core$2f$reasoning$2f$causal$2d$validator$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["validateCausalBridgesProduction"](graph, claims, provider)
+    ]);
+    // 4. Score Components
+    const contradictions = __TURBOPACK__imported__module__$5b$project$5d2f$core$2f$reasoning$2f$contradiction$2d$checker$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["detectContradictions"](claims);
     const inferenceGaps = __TURBOPACK__imported__module__$5b$project$5d2f$core$2f$reasoning$2f$inference$2d$gap$2d$detector$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["detectInferenceGaps"](graph);
-    /* 6. Grounding */ const evidenceMatches = __TURBOPACK__imported__module__$5b$project$5d2f$core$2f$engines$2f$grounding$2f$evidence$2d$mapper$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["mapEvidence"](claims, sources);
     const groundingScore = __TURBOPACK__imported__module__$5b$project$5d2f$core$2f$engines$2f$grounding$2f$grounding$2d$engine$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["computeGroundingScore"](evidenceMatches);
-    /* 7. Consistency */ const consistencyScore = __TURBOPACK__imported__module__$5b$project$5d2f$core$2f$engines$2f$consistency$2f$consistency$2d$engine$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["computeConsistencyScore"](contradictions, inferenceGaps);
-    /* 8. Risk Engines (STRUCTURED) */ const hallucinationRisks = __TURBOPACK__imported__module__$5b$project$5d2f$core$2f$engines$2f$risk$2f$hallucination$2d$detector$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["detectHallucinations"](claims, evidenceMatches);
+    const consistencyScore = __TURBOPACK__imported__module__$5b$project$5d2f$core$2f$engines$2f$consistency$2f$consistency$2d$engine$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["computeConsistencyScore"](contradictions, inferenceGaps);
+    const hallucinationRisks = __TURBOPACK__imported__module__$5b$project$5d2f$core$2f$engines$2f$risk$2f$hallucination$2d$detector$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["detectHallucinations"](claims, evidenceMatches);
     const overconfidenceSignals = __TURBOPACK__imported__module__$5b$project$5d2f$core$2f$engines$2f$risk$2f$overconfidence$2d$detector$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["detectOverconfidence"](claims, tone);
     const assumptions = __TURBOPACK__imported__module__$5b$project$5d2f$core$2f$engines$2f$assumptions$2f$assumption$2d$extractor$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["extractAssumptions"](claims);
-    /* 9. ETS components (WHITEPAPER-ALIGNED) */ const components = {
+    const allRisks = [
+        ...semanticRisks,
+        ...refutationRisks,
+        ...causalRisks,
+        ...hallucinationRisks
+    ];
+    // 5. ETS Component Calculation
+    const components = {
         grounding: groundingScore,
         consistency: consistencyScore,
         assumptions: Math.max(0, 100 - assumptions.length * 10),
-        safety: Math.max(0, 100 - hallucinationRisks.length * 20),
+        safety: Math.max(0, 100 - allRisks.filter((r)=>r.severity === "high").length * 25),
         security: 100,
         calibration: Math.max(0, 100 - overconfidenceSignals.length * 10)
     };
-    /* 10. Final Trust Score */ const score = Math.max(0, Math.round(__TURBOPACK__imported__module__$5b$project$5d2f$core$2f$scoring$2f$trust$2d$score$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["computeETS"](components, __TURBOPACK__imported__module__$5b$project$5d2f$core$2f$scoring$2f$weighting$2d$profiles$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["ETS_WEIGHTS"][profile])));
-    /* 11. Return ENTERPRISE-GRADE OUTPUT */ return {
+    let score = Math.max(0, Math.round(__TURBOPACK__imported__module__$5b$project$5d2f$core$2f$scoring$2f$trust$2d$score$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["computeETS"](components, __TURBOPACK__imported__module__$5b$project$5d2f$core$2f$scoring$2f$weighting$2d$profiles$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["ETS_WEIGHTS"][profile])));
+    // 6. Logic Gate: Structural Failure Check
+    const hasCriticalFailure = allRisks.some((r)=>r.severity === "high") || claims.some((c)=>c.gravity === "critical");
+    if (hasCriticalFailure) {
+        score = Math.min(score, 18); // Hard cap for impossible/unsubstantiated claims
+    }
+    return {
         score,
         claims,
-        risks: hallucinationRisks,
+        risks: allRisks,
         explainability: {
             contradictions,
             inferenceGaps,
             overconfidence: overconfidenceSignals,
-            assumptions
+            assumptions,
+            auditStatus: hasCriticalFailure ? "CRITICAL_FAILURE" : "PASSED"
         }
     };
+}
+
+})()),
+"[project]/lib/llm/openai.ts [app-rsc] (ecmascript)": (({ r: __turbopack_require__, f: __turbopack_require_context__, i: __turbopack_import__, s: __turbopack_esm__, v: __turbopack_export_value__, n: __turbopack_export_namespace__, c: __turbopack_cache__, l: __turbopack_load__, j: __turbopack_dynamic__, p: __turbopack_resolve_absolute_path__, U: __turbopack_relative_url__, R: __turbopack_resolve_module_id_path__, g: global, __dirname, x: __turbopack_external_require__, y: __turbopack_external_import__ }) => (() => {
+"use strict";
+
+__turbopack_esm__({
+    "OpenAIProvider": ()=>OpenAIProvider
+});
+class OpenAIProvider {
+    apiKey;
+    name;
+    constructor(apiKey){
+        this.apiKey = apiKey;
+        this.name = "openai";
+    }
+    async generate(req) {
+        const res = await fetch("https://api.openai.com/v1/chat/completions", {
+            method: "POST",
+            headers: {
+                Authorization: `Bearer ${this.apiKey}`,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({
+                model: "gpt-4.1-mini",
+                messages: [
+                    {
+                        role: "user",
+                        content: req.prompt
+                    }
+                ],
+                temperature: req.temperature ?? 0
+            })
+        });
+        const json = await res.json();
+        return {
+            text: json.choices[0].message.content,
+            model: json.model,
+            provider: this.name
+        };
+    }
 }
 
 })()),
@@ -404,13 +593,16 @@ function log(level, message, meta) {
 "[project]/app/api/verify/route.ts [app-rsc] (ecmascript)": (({ r: __turbopack_require__, f: __turbopack_require_context__, i: __turbopack_import__, s: __turbopack_esm__, v: __turbopack_export_value__, n: __turbopack_export_namespace__, c: __turbopack_cache__, l: __turbopack_load__, j: __turbopack_dynamic__, p: __turbopack_resolve_absolute_path__, U: __turbopack_relative_url__, R: __turbopack_resolve_module_id_path__, g: global, __dirname, x: __turbopack_external_require__, y: __turbopack_external_import__ }) => (() => {
 "use strict";
 
+// app/api/verify/route.ts
 __turbopack_esm__({
     "POST": ()=>POST
 });
 var __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$web$2f$exports$2f$next$2d$response$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__ = __turbopack_import__("[project]/node_modules/next/dist/server/web/exports/next-response.js [app-rsc] (ecmascript)");
 var __TURBOPACK__imported__module__$5b$project$5d2f$core$2f$pipelines$2f$verify$2d$pipeline$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__ = __turbopack_import__("[project]/core/pipelines/verify-pipeline.ts [app-rsc] (ecmascript)");
+var __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$llm$2f$openai$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__ = __turbopack_import__("[project]/lib/llm/openai.ts [app-rsc] (ecmascript)");
 var __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$logging$2f$logger$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__ = __turbopack_import__("[project]/lib/logging/logger.ts [app-rsc] (ecmascript)");
 "__TURBOPACK__ecmascript__hoisting__location__";
+;
 ;
 ;
 ;
@@ -425,14 +617,11 @@ async function POST(req) {
                 status: 400
             });
         }
-        const result = __TURBOPACK__imported__module__$5b$project$5d2f$core$2f$pipelines$2f$verify$2d$pipeline$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["verifyPipeline"](content, profile, sources);
-        // TEMP: persistence disabled during local testing
-        // await saveVerification({
-        //   userId,
-        //   content,
-        //   result,
-        // });
-        __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$logging$2f$logger$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["log"]("info", "Verification completed", {
+        // Initialize the World's Best Auditor Engine
+        const provider = new __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$llm$2f$openai$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["OpenAIProvider"](process.env.OPENAI_API_KEY || "");
+        // Must be awaited because the advanced pipeline is async
+        const result = await __TURBOPACK__imported__module__$5b$project$5d2f$core$2f$pipelines$2f$verify$2d$pipeline$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["verifyPipeline"](content, profile, provider, sources);
+        __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$logging$2f$logger$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["log"]("info", "Advanced Verification completed", {
             userId,
             score: result.score
         });
@@ -459,4 +648,4 @@ __turbopack_export_value__({});
 
 };
 
-//# sourceMappingURL=_61f439._.js.map
+//# sourceMappingURL=_ec3233._.js.map

@@ -1,63 +1,48 @@
 // core/claims/claim-decomposer.ts
 import { createHash } from "crypto";
 import { ClaimType } from "./claim-types";
+import { LLMProvider } from "../../lib/llm/provider-adapter";
+
+export type AuditGravity = "critical" | "high" | "medium" | "low";
 
 export type Claim = {
   id: string;
   text: string;
   index: number;
   type: ClaimType;
+  gravity: AuditGravity; // Moved from 'confidence' to 'gravity'
   confidence: number;
 };
 
-// Helper: Generate a stable short hash
-function generateStableId(text: string): string {
-  return createHash("sha256")
-    .update(text.trim().toLowerCase())
-    .digest("hex")
-    .substring(0, 8);
-}
+export async function decomposeClaimsAdvanced(
+  content: string,
+  provider: LLMProvider
+): Promise<Claim[]> {
+  const prompt = `
+    Act as a Senior Forensic Auditor (ex-McKinsey/SEC). 
+    Decompose the following text into distinct, atomic claims.
+    
+    For each claim, identify:
+    1. The core assertion.
+    2. Type: factual | causal | normative | predictive | numerical.
+    3. Audit Gravity: 
+       - critical: Violations of physics, law, or absolute guarantees (e.g. "100% returns").
+       - high: Unsubstantiated high-impact stats or causal chains.
+       - medium/low: Standard professional assertions.
 
-// 🧠 NEW: Heuristic Logic to categorize claims
-function classifyClaim(text: string): ClaimType {
-  const lower = text.toLowerCase();
+    Return the result ONLY as a JSON array of objects:
+    { "text": string, "type": ClaimType, "gravity": AuditGravity }
 
-  // 1. Numerical: Contains percentages, currency, or specific stats
-  if (/\d+%|\$\d+|[0-9]{2,}/.test(text)) {
-    return "numerical";
-  }
+    Text to audit: "${content}"
+  `;
 
-  // 2. Predictive: Future tense or certainty words
-  if (/(will|shall|going to|expects to|projected|guarantees)/.test(lower)) {
-    return "predictive";
-  }
+  const response = await provider.generate({ prompt, temperature: 0 });
+  const rawClaims: any[] = JSON.parse(response.text);
 
-  // 3. Causal: Cause-and-effect language
-  if (/(because|due to|leads to|results in|causes)/.test(lower)) {
-    return "causal";
-  }
-
-  // 4. Normative: Opinions or "should" statements
-  if (/(should|must|ought|good|bad|better|worse)/.test(lower)) {
-    return "normative";
-  }
-
-  // Default
-  return "factual";
-}
-
-export function decomposeClaims(content: string): Claim[] {
-  // Robust sentence splitting
-  const sentences =
-    content.match(/[^.!?]+[.!?]+/g)?.map(s => s.trim()) || [];
-
-  return sentences.map((cleanText, idx) => {
-    return {
-      id: generateStableId(cleanText),
-      text: cleanText,
-      index: idx,
-      type: classifyClaim(cleanText), // <--- Uses the new logic
-      confidence: 1.0,
-    };
-  });
+  return rawClaims.map((c, idx) => ({
+    ...c,
+    id: `C${idx + 1}`,
+    index: idx,
+    confidence: 1.0,
+  }));
 }
