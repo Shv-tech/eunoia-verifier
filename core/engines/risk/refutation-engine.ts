@@ -3,42 +3,28 @@ import { Claim } from "../../claims/claim-decomposer";
 import { LLMProvider } from "../../../lib/llm/provider-adapter";
 import { RiskExplanation } from "../../risk/types";
 
-export async function runAdversarialRefutation(
-  claims: Claim[],
-  provider: LLMProvider
-): Promise<RiskExplanation[]> {
+/**
+ * The 'Red-Team' Refutation Engine:
+ * Actively attempts to prove a claim is FALSE.
+ */
+export async function runAdversarialRefutation(claims: Claim[], provider: LLMProvider): Promise<RiskExplanation[]> {
   const risks: RiskExplanation[] = [];
-
-  // Parallel refutation for speed
   await Promise.all(claims.map(async (claim) => {
-    const prompt = `
-      Act as a Skeptical Auditor. Your goal is to DEBUNK this claim.
-      Identify the specific logical fallacy, missing assumption, or data gap that makes this claim unreliable.
-      
-      Claim: "${claim.text}"
-      
-      If you find a structural weakness, return a JSON object with "reason" and "implication". 
-      Otherwise return null.
-    `;
-
-    const response = await provider.generate({ prompt, temperature: 0.2 });
-    try {
-      const defect = JSON.parse(response.text);
-      if (defect) {
+    const prompt = `Act as a Skeptical Auditor. DEBUNK this claim: "${claim.text}". 
+    Look for hidden assumptions or data gaps. Return JSON {"reason": string, "implication": string} or "null".`;
+    
+    const response = await provider.generate({ prompt, temperature: 0.1 });
+    const text = response.text.replace(/```json|```/g, "").trim();
+    if (text !== "null") {
+      try {
+        const defect = JSON.parse(text);
         risks.push({
-          id: `refute-${claim.id}`,
-          claimId: claim.id,
-          type: "consistency",
-          severity: "medium",
-          reasoning: {
-            observation: defect.reason,
-            implication: defect.implication,
-          },
-          remediation: { action: "Address the specific logical counter-argument." }
+          id: `refute-${claim.id}`, claimId: claim.id, type: "consistency", severity: "medium",
+          reasoning: { observation: defect.reason, implication: defect.implication },
+          remediation: { action: "Provide specific substantiation for this logical gap." }
         });
-      }
-    } catch (e) { /* No defect found */ }
+      } catch (e) {}
+    }
   }));
-
   return risks;
 }

@@ -1,5 +1,4 @@
 // core/claims/claim-decomposer.ts
-import { createHash } from "crypto";
 import { ClaimType } from "./claim-types";
 import { LLMProvider } from "../../lib/llm/provider-adapter";
 
@@ -10,7 +9,7 @@ export type Claim = {
   text: string;
   index: number;
   type: ClaimType;
-  gravity: AuditGravity; // Moved from 'confidence' to 'gravity'
+  gravity: AuditGravity;
   confidence: number;
 };
 
@@ -22,22 +21,17 @@ export async function decomposeClaimsAdvanced(
     Act as a Senior Forensic Auditor (ex-McKinsey/SEC). 
     Decompose the following text into distinct, atomic claims.
     
-    For each claim, identify:
-    1. The core assertion.
-    2. Type: factual | causal | normative | predictive | numerical.
-    3. Audit Gravity: 
-       - critical: Violations of physics, law, or absolute guarantees (e.g. "100% returns").
-       - high: Unsubstantiated high-impact stats or causal chains.
-       - medium/low: Standard professional assertions.
+    Assign 'Audit Gravity':
+    - critical: Violations of physical laws (Entropy, Thermodynamics) or SEC/FDA regulations.
+    - high: Numerical assertions or causal guarantees (e.g. "will lead to X").
+    - medium/low: Standard descriptive assertions.
 
-    Return the result ONLY as a JSON array of objects:
-    { "text": string, "type": ClaimType, "gravity": AuditGravity }
-
-    Text to audit: "${content}"
+    Return result ONLY as a JSON array: [{"text": string, "type": ClaimType, "gravity": AuditGravity}]
+    Text: "${content}"
   `;
 
   const response = await provider.generate({ prompt, temperature: 0 });
-  const rawClaims: any[] = JSON.parse(response.text);
+  const rawClaims: any[] = JSON.parse(response.text.replace(/```json|```/g, "").trim());
 
   return rawClaims.map((c, idx) => ({
     ...c,

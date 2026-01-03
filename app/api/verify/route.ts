@@ -1,22 +1,41 @@
 // app/api/verify/route.ts
-import { NextRequest, NextResponse } from "next/server";
+import { NextResponse } from "next/server";
 import { verifyPipeline } from "@/core/pipelines/verify-pipeline";
 import { OpenAIProvider } from "@/lib/llm/openai";
-import { log } from "@/lib/logging/logger";
+import { WeightProfile } from "@/core/scoring/weighting-profiles";
 
-export async function POST(req: NextRequest) {
+export const runtime = "nodejs"; // 🔴 REQUIRED
+
+export async function POST(req: Request) {
   try {
-    const body = await req.json();
-    const { content, profile, sources = [], userId } = body;
-
-    if (!content || !profile) {
-      return NextResponse.json({ error: "Missing content or profile" }, { status: 400 });
+    const raw = await req.text();
+    if (!raw) {
+      return NextResponse.json({ error: "Empty request body" }, { status: 400 });
     }
 
-    // Initialize the World's Best Auditor Engine
-    const provider = new OpenAIProvider(process.env.OPENAI_API_KEY || "");
+    const body = JSON.parse(raw);
 
-    // Must be awaited because the advanced pipeline is async
+    const content: string = body.content;
+    const profile: WeightProfile | undefined = body.profile;
+    const sources: string[] = body.sources ?? [];
+    const userId = body.userId ?? "anon";
+
+    if (!content || typeof content !== "string") {
+      return NextResponse.json(
+        { error: "Missing or invalid content" },
+        { status: 400 }
+      );
+    }
+
+    if (!process.env.OPENAI_API_KEY) {
+      return NextResponse.json(
+        { error: "LLM not configured" },
+        { status: 500 }
+      );
+    }
+
+    const provider = new OpenAIProvider(process.env.OPENAI_API_KEY);
+
     const result = await verifyPipeline(
       content,
       profile,
@@ -24,11 +43,17 @@ export async function POST(req: NextRequest) {
       sources
     );
 
-    log("info", "Advanced Verification completed", { userId, score: result.score });
+    // 🔴 JSON SAFE RETURN
+    return NextResponse.json({
+      ok: true,
+      result: JSON.parse(JSON.stringify(result)),
+    });
 
-    return NextResponse.json({ ok: true, result });
   } catch (err: any) {
-    log("error", "Verification failed", err);
-    return NextResponse.json({ error: "Internal verification error" }, { status: 500 });
+    console.error("VERIFY API CRASH:", err);
+    return NextResponse.json(
+      { error: err.message ?? "Internal verification error" },
+      { status: 500 }
+    );
   }
 }

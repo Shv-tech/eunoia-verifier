@@ -3,44 +3,29 @@ import { Claim } from "../../claims/claim-decomposer";
 import { RiskExplanation } from "../../risk/types";
 import { Domain } from "../../intake/domain-classifier";
 
-export async function detectSemanticViolations(
-  claims: Claim[],
-  domain: Domain
-): Promise<RiskExplanation[]> {
+/**
+ * World-Class Logic Gates:
+ * Checks claims against fundamental Universal Constraints.
+ */
+export async function detectSemanticViolations(claims: Claim[], domain: Domain): Promise<RiskExplanation[]> {
   const risks: RiskExplanation[] = [];
-
   for (const claim of claims) {
-    // 1. Absolutism Gate
-    if (/(100%|guaranteed|impossible to fail|infallible|perfect)/i.test(claim.text)) {
-      risks.push(createRisk(claim, "high", "Absolutist phrasing detected. In professional auditing, absolute certainty is a primary red flag for fraud."));
+    // Physics/Science Gate: Flag entropy/perpetual motion violations
+    if (domain === "research" && /(entropy|perpetual|faster than light|over-unity)/i.test(claim.text)) {
+      risks.push(createRisk(claim, "high", "Violation of fundamental physical laws detected."));
     }
-
-    // 2. Physical/Scientific Law Gate (Entropy/Thermodynamics)
-    if (domain === "research" && /(entropy|perpetual|over-unity|faster than light)/i.test(claim.text)) {
-      risks.push(createRisk(claim, "high", "Violation of fundamental scientific constants. This claim contradicts established physical laws."));
-    }
-
-    // 3. Regulatory Gate (Finance/Legal)
-    if ((domain === "finance" || domain === "legal") && /(guaranteed returns|no-risk profit|bypass regulation)/i.test(claim.text)) {
-      risks.push(createRisk(claim, "high", "Regulatory compliance violation. Promised returns without risk disclosure are prohibited by financial authorities."));
+    // Regulatory Gate: Flag SEC 'Guaranteed Returns' or FDA 'Instant Cure'
+    if ((domain === "finance" || domain === "legal") && /(100% guaranteed|no-risk profit|bypass regulation)/i.test(claim.text)) {
+      risks.push(createRisk(claim, "high", "SEC/Regulatory violation: Guaranteed returns without risk disclosure are legally invalid."));
     }
   }
-
   return risks;
 }
 
 function createRisk(claim: Claim, severity: any, observation: string): RiskExplanation {
   return {
-    id: `semantic-${claim.id}`,
-    claimId: claim.id,
-    type: "hallucination",
-    severity,
-    reasoning: {
-      observation,
-      implication: "The entire logical structure of the document is compromised by this impossible premise.",
-    },
-    remediation: {
-      action: "Remove absolute qualifiers or provide proof of breakthrough validation.",
-    }
+    id: `semantic-${claim.id}`, claimId: claim.id, type: "hallucination", severity,
+    reasoning: { observation, implication: "This claim forms a logical impossibility that invalidates the surrounding context." },
+    remediation: { action: "Remove absolute qualifiers or cite breakthrough validation results." }
   };
 }
