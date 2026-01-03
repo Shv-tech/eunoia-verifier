@@ -87,28 +87,25 @@ async function decomposeClaimsAdvanced(content, provider) {
 "[project]/lib/tools/google-search.ts [app-rsc] (ecmascript)": (({ r: __turbopack_require__, f: __turbopack_require_context__, i: __turbopack_import__, s: __turbopack_esm__, v: __turbopack_export_value__, n: __turbopack_export_namespace__, c: __turbopack_cache__, l: __turbopack_load__, j: __turbopack_dynamic__, p: __turbopack_resolve_absolute_path__, U: __turbopack_relative_url__, R: __turbopack_resolve_module_id_path__, g: global, __dirname, x: __turbopack_external_require__, y: __turbopack_external_import__ }) => (() => {
 "use strict";
 
-// lib/tools/google-search.ts
 __turbopack_esm__({
     "performWebSearch": ()=>performWebSearch
 });
 async function performWebSearch(query) {
     const apiKey = process.env.GOOGLE_SEARCH_API_KEY;
     const cx = process.env.GOOGLE_SEARCH_ENGINE_ID;
-    if (!apiKey || !cx) {
-        console.warn("Search API credentials missing. Skipping live grounding.");
-        return [];
-    }
+    if (!apiKey || !cx) return [];
     const url = `https://www.googleapis.com/customsearch/v1?key=${apiKey}&cx=${cx}&q=${encodeURIComponent(query)}`;
     try {
         const response = await fetch(url);
         const data = await response.json();
-        return (data.items || []).map((item)=>({
+        if (!data.items) return [];
+        return data.items.map((item)=>({
                 title: item.title,
                 link: item.link,
                 snippet: item.snippet
             }));
     } catch (error) {
-        console.error("Google Search API Failure:", error);
+        console.error("Search API failure:", error);
         return [];
     }
 }
@@ -489,7 +486,6 @@ const ETS_WEIGHTS = {
 "[project]/core/pipelines/verify-pipeline.ts [app-rsc] (ecmascript)": (({ r: __turbopack_require__, f: __turbopack_require_context__, i: __turbopack_import__, s: __turbopack_esm__, v: __turbopack_export_value__, n: __turbopack_export_namespace__, c: __turbopack_cache__, l: __turbopack_load__, j: __turbopack_dynamic__, p: __turbopack_resolve_absolute_path__, U: __turbopack_relative_url__, R: __turbopack_resolve_module_id_path__, g: global, __dirname, x: __turbopack_external_require__, y: __turbopack_external_import__ }) => (() => {
 "use strict";
 
-// core/pipelines/verify-pipeline.ts
 __turbopack_esm__({
     "verifyPipeline": ()=>verifyPipeline
 });
@@ -534,24 +530,20 @@ var __TURBOPACK__imported__module__$5b$project$5d2f$core$2f$scoring$2f$weighting
 ;
 ;
 ;
-const DEFAULT_PROFILE = "founder";
-async function verifyPipeline(rawText, profile = DEFAULT_PROFILE, provider, sources = []) {
-    // 1. Intake & Forensic Signal Processing
+async function verifyPipeline(rawText, profile, provider, sources = []) {
     const text = __TURBOPACK__imported__module__$5b$project$5d2f$core$2f$intake$2f$normalize$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["normalizeInput"](rawText);
     const tone = __TURBOPACK__imported__module__$5b$project$5d2f$core$2f$intake$2f$tone$2d$calibration$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["calibrateTone"](text);
     const domain = __TURBOPACK__imported__module__$5b$project$5d2f$core$2f$intake$2f$domain$2d$classifier$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["classifyDomain"](text);
-    // 2. Forensic Claim Decomposition (Adversarial LLM-driven)
-    // Replaces heuristic extraction with Audit Gravity assessment
+    // 1. Forensic Decomposition
     const claims = await __TURBOPACK__imported__module__$5b$project$5d2f$core$2f$claims$2f$claim$2d$decomposer$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["decomposeClaimsAdvanced"](text, provider);
-    // 3. Structural Reasoning & Live Grounding (Parallel)
+    // 2. Parallel Structural Analysis & Live Grounding
     const [links, liveEvidence] = await Promise.all([
         Promise.resolve(__TURBOPACK__imported__module__$5b$project$5d2f$core$2f$claims$2f$claim$2d$linker$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["linkClaims"](claims)),
-        Promise.all(claims.filter((c)=>c.gravity === "critical" || c.gravity === "high").slice(0, 3) // Real-world grounding for high-stakes claims
-        .map(async (claim)=>{
+        Promise.all(claims.filter((c)=>c.gravity === "critical" || c.gravity === "high").slice(0, 3).map(async (claim)=>{
             const results = await __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$tools$2f$google$2d$search$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["performWebSearch"](claim.text);
             return {
                 claimId: claim.id,
-                results
+                results: results || []
             };
         }))
     ]);
@@ -561,47 +553,38 @@ async function verifyPipeline(rawText, profile = DEFAULT_PROFILE, provider, sour
         ...sources,
         ...liveLinks
     ];
-    // 4. Multi-Stage Adversarial Auditing (Parallel)
-    // Simultaneous check for: Semantic Laws, Red-Team Refutations, and Causal Sufficiency
+    // 3. Parallel Adversarial Logic Audits
     const [semanticRisks, refutationRisks, causalRisks] = await Promise.all([
         __TURBOPACK__imported__module__$5b$project$5d2f$core$2f$engines$2f$risk$2f$semantic$2d$validator$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["detectSemanticViolations"](claims, domain),
         __TURBOPACK__imported__module__$5b$project$5d2f$core$2f$engines$2f$risk$2f$refutation$2d$engine$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["runAdversarialRefutation"](claims, provider),
         __TURBOPACK__imported__module__$5b$project$5d2f$core$2f$reasoning$2f$causal$2d$validator$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["validateCausalBridgesProduction"](graph, claims, provider)
     ]);
-    // 5. Heuristic Defect Processing
+    // 4. Heuristic Defect Processing
     const contradictions = __TURBOPACK__imported__module__$5b$project$5d2f$core$2f$reasoning$2f$contradiction$2d$checker$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["detectContradictions"](claims);
     const inferenceGaps = __TURBOPACK__imported__module__$5b$project$5d2f$core$2f$reasoning$2f$inference$2d$gap$2d$detector$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["detectInferenceGaps"](graph);
     const evidenceMatches = __TURBOPACK__imported__module__$5b$project$5d2f$core$2f$engines$2f$grounding$2f$evidence$2d$mapper$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["mapEvidence"](claims, allSources);
     const hallucinationRisks = __TURBOPACK__imported__module__$5b$project$5d2f$core$2f$engines$2f$risk$2f$hallucination$2d$detector$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["detectHallucinations"](claims, evidenceMatches);
     const overconfidenceSignals = __TURBOPACK__imported__module__$5b$project$5d2f$core$2f$engines$2f$risk$2f$overconfidence$2d$detector$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["detectOverconfidence"](claims, tone);
     const assumptions = __TURBOPACK__imported__module__$5b$project$5d2f$core$2f$engines$2f$assumptions$2f$assumption$2d$extractor$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["extractAssumptions"](claims);
-    // 6. Global Risk Aggregation
     const allRisks = [
         ...semanticRisks,
         ...refutationRisks,
         ...causalRisks,
         ...hallucinationRisks
     ];
-    // 7. Whitepaper-Aligned Scoring Logic
-    const groundingScore = __TURBOPACK__imported__module__$5b$project$5d2f$core$2f$engines$2f$grounding$2f$grounding$2d$engine$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["computeGroundingScore"](evidenceMatches);
-    const consistencyScore = __TURBOPACK__imported__module__$5b$project$5d2f$core$2f$engines$2f$consistency$2f$consistency$2d$engine$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["computeConsistencyScore"](contradictions, inferenceGaps);
+    // 5. Final ETS Scoring with Audit Gate
     const components = {
-        grounding: groundingScore,
-        consistency: consistencyScore,
+        grounding: __TURBOPACK__imported__module__$5b$project$5d2f$core$2f$engines$2f$grounding$2f$grounding$2d$engine$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["computeGroundingScore"](evidenceMatches),
+        consistency: __TURBOPACK__imported__module__$5b$project$5d2f$core$2f$engines$2f$consistency$2f$consistency$2d$engine$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["computeConsistencyScore"](contradictions, inferenceGaps),
         assumptions: Math.max(0, 100 - assumptions.length * 10),
         safety: Math.max(0, 100 - allRisks.filter((r)=>r.severity === "high").length * 25),
         security: 100,
         calibration: Math.max(0, 100 - overconfidenceSignals.length * 10)
     };
     let score = Math.max(0, Math.round(__TURBOPACK__imported__module__$5b$project$5d2f$core$2f$scoring$2f$trust$2d$score$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["computeETS"](components, __TURBOPACK__imported__module__$5b$project$5d2f$core$2f$scoring$2f$weighting$2d$profiles$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["ETS_WEIGHTS"][profile])));
-    // 8. LOGIC GATE: High-Gravity Override
-    // If a claim violates physical/legal laws or red-team debunking found high severity issues, 
-    // cap the score at 18/100 regardless of citations.
+    // Logic Gate: If critical violations exist, force audit failure status
     const hasCriticalFailure = allRisks.some((r)=>r.severity === "high") || claims.some((c)=>c.gravity === "critical");
-    if (hasCriticalFailure) {
-        score = Math.min(score, 18);
-    }
-    // 9. Enterprise Audit Return Package
+    if (hasCriticalFailure) score = Math.min(score, 18);
     return {
         score,
         claims,
@@ -638,7 +621,7 @@ class OpenAIProvider {
                 "Content-Type": "application/json"
             },
             body: JSON.stringify({
-                model: "gpt-4.1-mini",
+                model: "gpt-4o-mini",
                 messages: [
                     {
                         role: "user",
@@ -649,6 +632,7 @@ class OpenAIProvider {
             })
         });
         const json = await res.json();
+        if (!res.ok) throw new Error(`OpenAI API Error: ${json.error?.message || res.statusText}`);
         return {
             text: json.choices[0].message.content,
             model: json.model,
@@ -678,16 +662,13 @@ function log(level, message, meta) {
 "[project]/app/api/verify/route.ts [app-rsc] (ecmascript)": (({ r: __turbopack_require__, f: __turbopack_require_context__, i: __turbopack_import__, s: __turbopack_esm__, v: __turbopack_export_value__, n: __turbopack_export_namespace__, c: __turbopack_cache__, l: __turbopack_load__, j: __turbopack_dynamic__, p: __turbopack_resolve_absolute_path__, U: __turbopack_relative_url__, R: __turbopack_resolve_module_id_path__, g: global, __dirname, x: __turbopack_external_require__, y: __turbopack_external_import__ }) => (() => {
 "use strict";
 
-// app/api/verify/route.ts
 __turbopack_esm__({
     "POST": ()=>POST
 });
 var __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$web$2f$exports$2f$next$2d$response$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__ = __turbopack_import__("[project]/node_modules/next/dist/server/web/exports/next-response.js [app-rsc] (ecmascript)");
 var __TURBOPACK__imported__module__$5b$project$5d2f$core$2f$pipelines$2f$verify$2d$pipeline$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__ = __turbopack_import__("[project]/core/pipelines/verify-pipeline.ts [app-rsc] (ecmascript)");
-var __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$llm$2f$openai$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__ = __turbopack_import__("[project]/lib/llm/openai.ts [app-rsc] (ecmascript)");
 var __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$logging$2f$logger$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__ = __turbopack_import__("[project]/lib/logging/logger.ts [app-rsc] (ecmascript)");
 "__TURBOPACK__ecmascript__hoisting__location__";
-;
 ;
 ;
 ;
@@ -702,11 +683,10 @@ async function POST(req) {
                 status: 400
             });
         }
-        // Initialize the World's Best Auditor Engine
-        const provider = new __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$llm$2f$openai$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["OpenAIProvider"](process.env.OPENAI_API_KEY || "");
-        // Must be awaited because the advanced pipeline is async
-        const result = await __TURBOPACK__imported__module__$5b$project$5d2f$core$2f$pipelines$2f$verify$2d$pipeline$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["verifyPipeline"](content, profile, provider, sources);
-        __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$logging$2f$logger$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["log"]("info", "Advanced Verification completed", {
+        // Initialize the Skeptical Auditor Provider
+        // Await the ASYNC pipeline with the provider correctly injected
+        const result = await __TURBOPACK__imported__module__$5b$project$5d2f$core$2f$pipelines$2f$verify$2d$pipeline$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["verifyPipeline"](content, profile, sources);
+        __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$logging$2f$logger$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["log"]("info", "Verification completed", {
             userId,
             score: result.score
         });
@@ -715,9 +695,13 @@ async function POST(req) {
             result
         });
     } catch (err) {
-        __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$logging$2f$logger$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["log"]("error", "Verification failed", err);
+        __TURBOPACK__imported__module__$5b$project$5d2f$lib$2f$logging$2f$logger$2e$ts__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["log"]("error", "Verification failed", {
+            error: err.message,
+            stack: err.stack
+        });
         return __TURBOPACK__imported__module__$5b$project$5d2f$node_modules$2f$next$2f$dist$2f$server$2f$web$2f$exports$2f$next$2d$response$2e$js__$5b$app$2d$rsc$5d$__$28$ecmascript$29$__["default"].json({
-            error: "Internal verification error"
+            error: "Internal verification error",
+            details: err.message
         }, {
             status: 500
         });

@@ -1,222 +1,253 @@
 "use client";
 
 import { useState } from "react";
-import { AlertTriangle, ShieldCheck, FileText, Loader2, CheckCircle2 } from "lucide-react";
+import Header from "@/components/layout/Header";
+import Footer from "@/components/layout/Footer";
+import TrustScoreMeter from "@/components/verify/TrustScoreMeter";
+import ExecutiveDashboard from "@/components/reports/ExecutiveDashboard";
+import ReasoningGraph from "@/components/verify/ReasoningGraph";
+import { Claim } from "@/core/claims/claim-decomposer";
+import { RiskExplanation } from "@/core/risk/types";
 
-// ✅ 1. Correct Types matching your V10 Engine output
-type Risk = {
-  id: string;
-  claimId: string;
-  severity: "low" | "medium" | "high";
-  reasoning: {
-    observation: string;
-    implication?: string;
-  };
-};
-
-type Claim = {
-  id: string;
-  text: string;
-  type: string;
-};
-
+// Enhanced result type to match the new adversarial pipeline
 type VerifyResult = {
   score: number;
   claims: Claim[];
-  risks: Risk[];
+  risks: RiskExplanation[];
+  explainability: {
+    contradictions: string[];
+    inferenceGaps: string[];
+    overconfidence: string[];
+    assumptions: string[];
+    auditStatus: "PASSED" | "CRITICAL_FAILURE";
+  };
 };
 
 export default function VerifyPage() {
   const [content, setContent] = useState("");
-  const [profile, setProfile] = useState<"founder" | "legal">("founder");
+  const [sources, setSources] = useState("");
+  const [profile, setProfile] = useState("founder");
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<VerifyResult | null>(null);
-  const [error, setError] = useState<string | null>(null);
 
-  async function runVerification() {
+  const handleVerify = async () => {
     setLoading(true);
-    setError(null);
     setResult(null);
-
     try {
+      const sourceList = sources
+        .split("\n")
+        .map((s) => s.trim())
+        .filter((s) => s !== "");
+
       const res = await fetch("/api/verify", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ content, profile }),
+        body: JSON.stringify({ content, profile, sources: sourceList }),
       });
 
-      if (!res.ok) throw new Error("Verification failed");
-
       const data = await res.json();
-      setResult(data.result);
-    } catch (err: any) {
-      setError(err.message || "Unexpected error");
+      if (data.ok) {
+        setResult(data.result);
+      } else {
+        alert("Audit Engine Failure: " + (data.details || data.error));
+      }
+    } catch (err) {
+      console.error(err);
+      alert("Network Error: Failed to reach the audit server.");
     } finally {
       setLoading(false);
     }
-  }
+  };
 
   return (
-    <div className="min-h-[calc(100vh-64px)] flex flex-col md:flex-row bg-gray-50">
-      
-      {/* LEFT: Input Panel */}
-      <div className="w-full md:w-1/2 p-8 border-r border-gray-200 bg-white flex flex-col">
-        <div className="flex items-center gap-3 mb-8">
-          <div className="p-2.5 bg-black text-white rounded-lg shadow-sm">
-            <FileText size={20} />
-          </div>
-          <div>
-            <h1 className="text-xl font-bold text-gray-900 tracking-tight">New Verification</h1>
-            <p className="text-sm text-gray-500">Audit logic, facts, and risks</p>
-          </div>
-        </div>
+    <div className="min-h-screen flex flex-col bg-gray-50">
+      <Header />
 
-        <div className="space-y-6 flex-1">
-          <div>
-            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">Target Audience</label>
-            <div className="grid grid-cols-2 gap-3">
-              <button
-                onClick={() => setProfile("founder")}
-                className={`p-3 text-sm font-medium rounded-lg border transition-all ${
-                  profile === "founder" ? "border-black bg-black text-white shadow-md" : "border-gray-200 hover:border-gray-300 text-gray-600 hover:bg-gray-50"
-                }`}
-              >
-                Founder / Pitch
-              </button>
-              <button
-                onClick={() => setProfile("legal")}
-                className={`p-3 text-sm font-medium rounded-lg border transition-all ${
-                  profile === "legal" ? "border-black bg-black text-white shadow-md" : "border-gray-200 hover:border-gray-300 text-gray-600 hover:bg-gray-50"
-                }`}
-              >
-                Legal / Contract
-              </button>
+      <main className="flex-grow container mx-auto px-4 py-8">
+        <div className="max-w-5xl mx-auto">
+          <h1 className="text-3xl font-bold mb-6 text-gray-900">Advanced Semantic Auditor</h1>
+
+          {/* Input Section */}
+          <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 mb-8">
+            <div className="mb-4">
+              <label className="block text-sm font-semibold mb-2 text-gray-700 uppercase tracking-wider">
+                Content to Audit
+              </label>
+              <textarea
+                className="w-full h-48 p-4 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-900"
+                placeholder="Paste the technical claims, scientific text, or financial projections here..."
+                value={content}
+                onChange={(e) => setContent(e.target.value)}
+              />
             </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+              <div>
+                <label className="block text-sm font-semibold mb-2 text-gray-700 uppercase tracking-wider">
+                  Reference Sources (One per line)
+                </label>
+                <textarea
+                  className="w-full h-24 p-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 text-gray-900"
+                  placeholder="https://example.com/source"
+                  value={sources}
+                  onChange={(e) => setSources(e.target.value)}
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-semibold mb-2 text-gray-700 uppercase tracking-wider">
+                  Auditor Persona
+                </label>
+                <select
+                  className="w-full p-3 border border-gray-300 rounded-lg bg-white text-gray-900 focus:ring-2 focus:ring-blue-500"
+                  value={profile}
+                  onChange={(e) => setProfile(e.target.value)}
+                >
+                  <option value="founder">The Skeptical VC (Innovation Focus)</option>
+                  <option value="legal">The Forensic Attorney (Liability Focus)</option>
+                  <option value="research">The Peer Reviewer (Scientific Accuracy)</option>
+                </select>
+                <p className="mt-2 text-xs text-gray-500 italic">
+                  Selecting a persona adjusts risk sensitivity and scoring weights.
+                </p>
+              </div>
+            </div>
+
+            <button
+              onClick={handleVerify}
+              disabled={loading || !content}
+              className={`w-full py-4 rounded-lg font-bold text-white transition-all shadow-lg ${
+                loading || !content
+                  ? "bg-gray-400 cursor-not-allowed"
+                  : "bg-blue-600 hover:bg-blue-700 transform hover:-translate-y-0.5 active:scale-95"
+              }`}
+            >
+              {loading ? (
+                <span className="flex items-center justify-center gap-2">
+                  <svg className="animate-spin h-5 w-5 text-white" viewBox="0 0 24 24">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4" fill="none" />
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z" />
+                  </svg>
+                  Initializing Adversarial Pipeline...
+                </span>
+              ) : (
+                "Run Forensic Audit"
+              )}
+            </button>
           </div>
 
-          <div className="flex-1 flex flex-col">
-            <label className="block text-xs font-bold text-gray-500 uppercase tracking-wider mb-2">
-              Input Text
-            </label>
-            <textarea
-              value={content}
-              onChange={(e) => setContent(e.target.value)}
-              className="flex-1 min-h-[300px] w-full p-4 text-sm bg-gray-50 border border-gray-200 rounded-xl focus:ring-2 focus:ring-black focus:border-transparent outline-none resize-none font-mono leading-relaxed"
-              placeholder="Paste pitch deck text, claims, or legal assertions here..."
-            />
-          </div>
+          {/* Results Section */}
+          {result && (
+            <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-700">
+              
+              {/* 1. Executive Summary & Dashboard */}
+              <div className="bg-white rounded-xl shadow-md overflow-hidden border border-gray-200">
+                <div className={`p-1 text-center text-xs font-bold text-white uppercase tracking-widest ${
+                  result.explainability.auditStatus === "CRITICAL_FAILURE" ? "bg-red-600" : "bg-green-600"
+                }`}>
+                  Official Audit Status: {result.explainability.auditStatus.replace("_", " ")}
+                </div>
+                <div className="p-8">
+                  <ExecutiveDashboard
+                   result={result}
+                   reportId="verify-session"
+                   />
 
-          <button
-            onClick={runVerification}
-            disabled={loading || !content.trim()}
-            className="w-full bg-black text-white h-12 rounded-xl font-medium flex items-center justify-center gap-2 hover:bg-gray-800 disabled:opacity-50 disabled:cursor-not-allowed transition-all shadow-lg shadow-black/10"
-          >
-            {loading ? <Loader2 className="animate-spin" size={18} /> : <ShieldCheck size={18} />}
-            {loading ? "Reconstructing Logic..." : "Run Audit"}
-          </button>
+                </div>
+              </div>
 
-          {error && (
-            <div className="p-4 bg-red-50 text-red-600 text-sm rounded-lg flex items-start gap-2 border border-red-100">
-              <AlertTriangle size={16} className="mt-0.5 shrink-0" /> 
-              <span>{error}</span>
+              {/* 2. Structural Reasoning Visualization */}
+              <div className="bg-white rounded-xl shadow-md p-6 border border-gray-200">
+                <h2 className="text-xl font-bold mb-4 text-gray-900 border-b pb-2">Structural Integrity Map</h2>
+                <div className="h-[400px] w-full rounded-lg bg-gray-50 border border-dashed border-gray-300">
+                  
+                  {/* Note: In a production linkClaims setup, edges should be passed from the backend links */}
+                </div>
+                <p className="mt-4 text-sm text-gray-500">
+                  This map visualizes the logical dependencies between your claims. Isolated nodes indicate a lack of supporting context.
+                </p>
+              </div>
+
+              {/* 3. Forensic Risk Analysis */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                <div className="bg-white rounded-xl shadow-md p-6 border border-gray-200">
+                  <h2 className="text-xl font-bold mb-4 text-red-700 border-b pb-2 flex items-center gap-2">
+                    <span className="bg-red-100 p-1 rounded">⚠️</span> Detected Risks
+                  </h2>
+                  <div className="space-y-4 max-h-[500px] overflow-y-auto pr-2">
+                    {result.risks.length > 0 ? (
+                      result.risks.map((r, idx) => (
+                        <div key={r.id || idx} className="p-4 border-l-4 border-red-500 bg-red-50 rounded-r-lg">
+                          <p className="font-bold text-sm text-red-900">{r.reasoning.observation}</p>
+                          <p className="text-xs text-red-700 mt-1 italic">Implication: {r.reasoning.implication}</p>
+                          {r.remediation && (
+                            <div className="mt-2 text-xs font-medium text-blue-700 bg-blue-50 p-2 rounded">
+                              Remediation: {r.remediation.action}
+                            </div>
+                          )}
+                        </div>
+                      ))
+                    ) : (
+                      <p className="text-gray-500 italic">No critical risks detected in this version.</p>
+                    )}
+                  </div>
+                </div>
+
+                <div className="bg-white rounded-xl shadow-md p-6 border border-gray-200">
+                  <h2 className="text-xl font-bold mb-4 text-gray-800 border-b pb-2 flex items-center gap-2">
+                    <span className="bg-gray-100 p-1 rounded">📝</span> Claim Decomposition
+                  </h2>
+                  <div className="space-y-3">
+                    {result.claims.map((claim) => (
+                      <div key={claim.id} className="p-3 border border-gray-100 rounded-lg hover:bg-gray-50 transition-colors">
+                        <div className="flex justify-between items-start mb-1">
+                          <span className="text-xs font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded uppercase">
+                            {claim.id} | {claim.type}
+                          </span>
+                          <span className={`text-[10px] font-bold uppercase ${
+                            claim.gravity === 'critical' ? 'text-red-600' : 'text-gray-400'
+                          }`}>
+                            Gravity: {claim.gravity}
+                          </span>
+                        </div>
+                        <p className="text-sm text-gray-800 leading-relaxed">{claim.text}</p>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+
+              {/* 4. Strategic Analysis Panel */}
+              <div className="bg-white rounded-xl shadow-md p-6 border border-gray-200">
+                <h2 className="text-xl font-bold mb-4 text-gray-900 border-b pb-2">Adversarial Logic Explainer</h2>
+                <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 text-center">
+                  <div className="p-4 bg-gray-50 rounded-lg border border-gray-100">
+                    <div className="text-2xl mb-1">⚖️</div>
+                    <div className="text-xs font-bold text-gray-500 uppercase">Contradictions</div>
+                    <div className="text-lg font-bold text-gray-900">{result.explainability.contradictions.length}</div>
+                  </div>
+                  <div className="p-4 bg-gray-50 rounded-lg border border-gray-100">
+                    <div className="text-2xl mb-1">🕳️</div>
+                    <div className="text-xs font-bold text-gray-500 uppercase">Inference Gaps</div>
+                    <div className="text-lg font-bold text-gray-900">{result.explainability.inferenceGaps.length}</div>
+                  </div>
+                  <div className="p-4 bg-gray-50 rounded-lg border border-gray-100">
+                    <div className="text-2xl mb-1">⚡</div>
+                    <div className="text-xs font-bold text-gray-500 uppercase">Overconfidence</div>
+                    <div className="text-lg font-bold text-gray-900">{result.explainability.overconfidence.length}</div>
+                  </div>
+                  <div className="p-4 bg-gray-50 rounded-lg border border-gray-100">
+                    <div className="text-2xl mb-1">🧱</div>
+                    <div className="text-xs font-bold text-gray-500 uppercase">Assumptions</div>
+                    <div className="text-lg font-bold text-gray-900">{result.explainability.assumptions.length}</div>
+                  </div>
+                </div>
+              </div>
             </div>
           )}
         </div>
-      </div>
+      </main>
 
-      {/* RIGHT: Results Preview */}
-      <div className="w-full md:w-1/2 p-8 bg-gray-50 overflow-y-auto">
-        {!result && !loading && (
-          <div className="h-full flex flex-col items-center justify-center text-gray-400">
-            <div className="w-16 h-16 bg-white rounded-full flex items-center justify-center mb-4 shadow-sm border border-gray-100">
-              <ShieldCheck size={32} className="opacity-20" />
-            </div>
-            <p className="text-sm font-medium">Ready to verify</p>
-          </div>
-        )}
-
-        {loading && (
-          <div className="h-full flex flex-col items-center justify-center text-gray-400">
-            <Loader2 size={48} className="mb-4 animate-spin opacity-20 text-black" />
-            <p className="text-sm animate-pulse font-medium text-gray-500">Analyzing reasoning graph...</p>
-          </div>
-        )}
-
-        {result && (
-          <div className="space-y-8 animate-in fade-in slide-in-from-bottom-4 duration-500">
-            
-            {/* Score Card */}
-            <div className="bg-white p-8 rounded-2xl border border-gray-200 shadow-sm text-center">
-              <p className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-4">Eunoia Trust Score</p>
-              <div className="flex items-center justify-center gap-3">
-                <span className={`text-6xl font-serif font-bold ${result.score > 80 ? "text-emerald-600" : result.score > 50 ? "text-amber-500" : "text-red-500"}`}>
-                  {result.score}
-                </span>
-                <span className="text-gray-300 text-2xl font-serif">/100</span>
-              </div>
-            </div>
-
-            {/* Claims List */}
-            <div>
-              <h3 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
-                <FileText size={16} className="text-gray-400" /> Detected Claims
-              </h3>
-              <div className="space-y-3">
-                {result.claims.map((c) => (
-                  <div key={c.id} className="p-4 bg-white rounded-xl border border-gray-200 text-sm shadow-sm transition-hover hover:border-gray-300">
-                    <div className="flex gap-3">
-                      <span className="shrink-0 font-mono text-[10px] font-bold text-gray-400 bg-gray-50 px-2 py-1 rounded h-fit border border-gray-100">
-                        {c.id}
-                      </span>
-                      <span className="text-gray-700 leading-relaxed">{c.text}</span>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-            {/* Risks List - 🛡️ FIXED RENDERING */}
-            <div>
-              <h3 className="text-sm font-bold text-gray-900 mb-4 flex items-center gap-2">
-                {result.risks.length > 0 ? (
-                  <><AlertTriangle size={16} className="text-red-500" /> <span className="text-red-600">Critical Risks Detected</span></>
-                ) : (
-                  <><CheckCircle2 size={16} className="text-emerald-500" /> <span className="text-emerald-600">No Critical Risks</span></>
-                )}
-              </h3>
-              
-              <div className="space-y-3">
-                {result.risks.map((r, idx) => (
-                  <div key={`${r.id}-${idx}`} className="p-4 bg-white rounded-xl border-l-4 border-red-500 shadow-sm">
-                    <div className="flex flex-col gap-2">
-                      <div className="flex justify-between items-start">
-                        <span className="font-semibold text-gray-900 text-sm">
-                          {/* ✅ SAFE ACCESS: We dig into .reasoning.observation */}
-                          {r.reasoning?.observation || "Potential issue detected"}
-                        </span>
-                        <span className={`text-[10px] font-bold uppercase px-2 py-1 rounded-full border ${
-                          r.severity === 'high' ? 'bg-red-50 text-red-600 border-red-100' : 
-                          r.severity === 'medium' ? 'bg-amber-50 text-amber-600 border-amber-100' : 
-                          'bg-gray-50 text-gray-600 border-gray-100'
-                        }`}>
-                          {r.severity}
-                        </span>
-                      </div>
-                      <div className="flex items-center gap-2 text-xs text-gray-400 mt-1">
-                        <span className="font-mono">Ref: {r.claimId}</span>
-                        {r.reasoning?.implication && (
-                          <span className="text-gray-500">• {r.reasoning.implication}</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            </div>
-
-          </div>
-        )}
-      </div>
+      <Footer />
     </div>
   );
 }
